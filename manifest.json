@@ -1,0 +1,122 @@
+{
+  "id": "SUBJECT-control-hospitalario",
+  "technicalId": "subject-control-hospitalario",
+  "name": "Control Hospitalario",
+  "version": "0.1.0",
+  "image": "ghcr.io/opus-perpetuus/subject-control-hospitalario:0.1.0",
+  "compat": {
+    "nox": ">=0.5.0",
+    "kit": "^0.5.0"
+  },
+  "api": {
+    "basePath": "/",
+    "port": 3000,
+    "healthPath": "/health"
+  },
+  "permissions": [
+    {
+      "id": "subject.control-hospitalario.medical-file.read",
+      "label": "Ver Expediente clínico"
+    },
+    {
+      "id": "subject.control-hospitalario.medical-file.write",
+      "label": "Editar Expediente clínico"
+    },
+    {
+      "id": "subject.control-hospitalario.kiosk.read",
+      "label": "Ver Kiosco Expediente Clínico"
+    },
+    {
+      "id": "subject.control-hospitalario.kiosk.write",
+      "label": "Editar Kiosco Expediente Clínico"
+    },
+    {
+      "id": "subject.control-hospitalario.medical.read",
+      "label": "Ver Médicos"
+    },
+    {
+      "id": "subject.control-hospitalario.medical.write",
+      "label": "Editar Médicos"
+    },
+    {
+      "id": "subject.control-hospitalario.patient.read",
+      "label": "Ver Pacientes"
+    },
+    {
+      "id": "subject.control-hospitalario.patient.write",
+      "label": "Editar Pacientes"
+    }
+  ],
+  "pages": [
+    {
+      "id": "control-hospitalario.medical-file",
+      "path": "medical-file",
+      "permission": "subject.control-hospitalario.medical-file.read"
+    },
+    {
+      "id": "control-hospitalario.kiosk",
+      "path": "kiosk",
+      "permission": "subject.control-hospitalario.kiosk.read"
+    },
+    {
+      "id": "control-hospitalario.medical",
+      "path": "medical",
+      "permission": "subject.control-hospitalario.medical.read"
+    },
+    {
+      "id": "control-hospitalario.patient",
+      "path": "patient",
+      "permission": "subject.control-hospitalario.patient.read"
+    }
+  ],
+  "menu": [
+    {
+      "id": "control-hospitalario.root",
+      "label": "Control Hospitalario",
+      "order": 0,
+      "children": [
+        {
+          "id": "control-hospitalario.medical-file",
+          "label": "Expediente clínico",
+          "order": 0,
+          "pageId": "control-hospitalario.medical-file",
+          "path": "medical-file",
+          "permission": "subject.control-hospitalario.medical-file.read"
+        },
+        {
+          "id": "control-hospitalario.medical",
+          "label": "Médicos",
+          "order": 0,
+          "pageId": "control-hospitalario.medical",
+          "path": "medical",
+          "permission": "subject.control-hospitalario.medical.read"
+        },
+        {
+          "id": "control-hospitalario.patient",
+          "label": "Pacientes",
+          "order": 0,
+          "pageId": "control-hospitalario.patient",
+          "path": "patient",
+          "permission": "subject.control-hospitalario.patient.read"
+        },
+        {
+          "id": "control-hospitalario.kiosk",
+          "label": "Kiosco Expediente Clínico",
+          "order": 1,
+          "pageId": "control-hospitalario.kiosk",
+          "path": "kiosk",
+          "permission": "subject.control-hospitalario.kiosk.read"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "domain": "shared-nox-postgres"
+  },
+  "resources": {
+    "medical-file": "medical_file",
+    "kiosk": "kiosk",
+    "medical": "medical",
+    "patient": "patient"
+  }
+}
