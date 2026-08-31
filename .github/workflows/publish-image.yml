@@ -28,5 +28,3 @@ jobs:
             -t ghcr.io/opus-perpetuus/subject-control-hospitalario:latest \
             --push \
             .
-          docker push ghcr.io/opus-perpetuus/subject-control-hospitalario:0.1.0
-          docker push ghcr.io/opus-perpetuus/subject-control-hospitalario:latest
