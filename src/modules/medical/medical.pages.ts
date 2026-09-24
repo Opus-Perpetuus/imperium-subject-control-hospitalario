@@ -51,13 +51,13 @@ export const medical_pages: KirletPageDecl[] = [
           form: {
             fields: [
               { name: "name", component: "input-text", label: "Nombre", required: true },
-              { name: "description", component: "input-text", label: "Descripción" },
+              { name: "description", component: "input-textarea", label: "Descripción" },
               { name: "ref", component: "input-text", label: "Referencia (_ref)" },
               { name: "nombre_completo", component: "input-text", label: "nombre completo" },
               { name: "cedula_profesional", component: "input-text", label: "cedula profesional" },
               { name: "especialidad", component: "input-text", label: "especialidad" },
-              { name: "firma_digital", component: "input-text", label: "firma digital" },
-              { name: "sello_medico", component: "input-text", label: "sello medico" },
+              { name: "firma_digital", component: "input-signature", label: "firma digital" },
+              { name: "sello_medico", component: "input-image", label: "sello medico" },
             ],
           },
         },
