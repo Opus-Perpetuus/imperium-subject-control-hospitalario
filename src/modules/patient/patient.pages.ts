@@ -2,6 +2,7 @@ import {
   build_feature_shell_page,
   type KirletPageDecl,
 } from "@opus-perpetuus/imperium-core-kit";
+import { general_option_list_options_source } from "../../general-option-seeds.ts";
 
 const API = "api://m/subject-control-hospitalario";
 
@@ -62,24 +63,21 @@ export const patient_pages: KirletPageDecl[] = [
                 name: "sexo",
                 component: "input-menu",
                 label: "sexo",
-                options: [
-                  { value: "Masculino", label: "Masculino" },
-                  { value: "Femenino", label: "Femenino" },
-                  { value: "No especificado", label: "No especificado" },
-                ],
+                // Opciones: general-option-list-control (seed en general-option-seeds.ts).
+                optionsSource: general_option_list_options_source(
+                  "subject-control-hospitalario/patient",
+                  "sexo",
+                ),
               },
               {
                 name: "estado_civil",
                 component: "input-menu",
                 label: "estado civil",
-                options: [
-                  { value: "Soltero", label: "Soltero" },
-                  { value: "Casado", label: "Casado" },
-                  { value: "Unión libre", label: "Unión libre" },
-                  { value: "Divorciado", label: "Divorciado" },
-                  { value: "Viudo", label: "Viudo" },
-                  { value: "Otro", label: "Otro" },
-                ],
+                // Opciones: general-option-list-control (seed en general-option-seeds.ts).
+                optionsSource: general_option_list_options_source(
+                  "subject-control-hospitalario/patient",
+                  "estado_civil",
+                ),
               },
               { name: "ocupacion", component: "input-text", label: "ocupacion" },
               { name: "telefono_paciente", component: "input-mask", label: "telefono paciente", mask: "00 0000 0000" },
