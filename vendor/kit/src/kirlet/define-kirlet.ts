@@ -1,9 +1,7 @@
-// (o==================================================================o)
 //   #region DEFINE KIRLET (single source of truth → manifest)
-// (o-----------------------------------------------------------\/-----o)
 
-import type { KirletManifest, KirletManifestIcon, KirletManifestMenuItem, KirletPublicAccess } from "./manifest.js";
-import { kirlet_slug_from_id, is_kirlet_catalog_id } from "./manifest.js";
+import type { KirletManifest, KirletManifestIcon, KirletManifestMenuItem, KirletManifestPage, KirletPublicAccess } from "./manifest.js";
+import { KIRLET_MANIFEST_SCHEMA_URI, KIRLET_MANIFEST_VERSION, kirlet_slug_from_id, is_kirlet_catalog_id } from "./manifest.js";
 import type { KirletManifestWidget } from "./widgets.js";
 import { validate_kirlet_manifest } from "./manifest-validate.js";
 import type { KirletSchemaBundle, KirletTableDecl } from "./schema.js";
@@ -61,6 +59,8 @@ export type KirletDefinitionInput = {
   public_files?: Array<{ resource: string; access?: KirletPublicAccess }>;
   /** Other kirlets that must be installed first (technical ids). */
   dependsOn?: string[];
+  /** Minimum product version this app needs (`X.Y.Z`); the core won't auto-apply it on an older core. */
+  requires?: { core?: string };
   /** Mobile widgets this kirlet contributes when installed. */
   widgets?: KirletManifestWidget[];
 };
@@ -276,11 +276,13 @@ export function define_kirlet(def: KirletDefinitionInput): KirletDefinition {
         label: mod.labels.write ?? `${mod.labels.plural}: write`,
       });
       for (const p of mod.pages ?? []) {
-        pages.push({
+        const page: KirletManifestPage = {
           id: p.id,
           path: p.path,
           permission: p.permission ?? read_id,
-        });
+        };
+        if (p.leaf) page.leaf = p.leaf;
+        pages.push(page);
       }
       // Derive public.api from route public_access (static path prefix)
       const by_prefix = new Map<
@@ -348,8 +350,16 @@ export function define_kirlet(def: KirletDefinitionInput): KirletDefinition {
       },
     };
 
+    // El validador exige contrato 1.0 solo cuando alguna página declara leaf.
+    if (pages.some((page) => page.leaf)) {
+      raw.manifestVersion = KIRLET_MANIFEST_VERSION;
+      raw.$schema = KIRLET_MANIFEST_SCHEMA_URI;
+    }
     if (def.dependsOn?.length) {
       raw.dependsOn = [...def.dependsOn];
+    }
+    if (def.requires?.core) {
+      raw.requires = { core: def.requires.core };
     }
     if (def.widgets?.length) {
       raw.widgets = def.widgets.map((w) => ({ ...w }));
@@ -423,6 +433,4 @@ export function qualify_history_resource(
 // silence unused DomainRow in case of future seed typing
 export type { DomainRow };
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion DEFINE KIRLET
-// (o==================================================================o)

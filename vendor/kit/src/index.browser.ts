@@ -1,6 +1,4 @@
-// (o==================================================================o)
 //   #region PUBLIC API (browser-safe)
-// (o-----------------------------------------------------------\/-----o)
 
 /**
  * Browser / Angular UI surface of the kit.
@@ -18,6 +16,9 @@ export * from './descriptors/ui-descriptor.js';
 export * from './descriptors/ui-action.js';
 export * from './descriptors/landing.js';
 export * from './descriptors/feature-shell.js';
+export * from './descriptors/option-lists.js';
+export * from './descriptors/subtable.js';
+export * from './descriptors/code-completions.js';
 // Kirtexto is DOM-free by design (the purifier is injected), so the whole
 // pipeline is safe to ship to the browser.
 export * from './html/html-profile.js';
@@ -34,6 +35,4 @@ export { kirlet_identity_can } from './kirlet/identity.types.js';
 export * from './platform/realms.js';
 export * from './tags/types.js';
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion PUBLIC API (browser-safe)
-// (o==================================================================o)

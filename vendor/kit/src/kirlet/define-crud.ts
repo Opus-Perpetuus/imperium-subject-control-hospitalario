@@ -1,9 +1,9 @@
-// (o==================================================================o)
 //   #region DEFINE CRUD (standard resource routes)
-// (o-----------------------------------------------------------\/-----o)
 
 import { new_id, now_iso } from "./http.js";
 import { KirletHttpError } from "./errors.js";
+import { field_name_access, type FieldValuesAccess } from "./field-values-rule.js";
+import { ANONYMOUS_USER_ID, type KirletIdentity } from "./identity.types.js";
 import { define_routes, type KirletRouteTable, type KirletCtx } from "./define-module.js";
 import type { DomainRow, FindManyOptions } from "./data-client.js";
 
@@ -20,7 +20,86 @@ export type CrudFieldSpec = {
   sortable?: boolean;
   normalize?: (value: unknown) => unknown;
   validate?: (value: unknown) => string | null;
+  /** Credencial o dato sensible: `field-values` no lo lista. */
+  secret?: boolean;
+  /**
+   * Permite `GET /<recurso>/field-values/<campo>` en un campo que por defecto
+   * se niega (json, secret, o nombre de credencial). Solo si sus valores
+   * distintos se pueden mostrar a cualquiera con lectura del recurso.
+   */
+  field_values?: boolean;
+  /**
+   * `false` = el campo no viaja en la lista (`GET /recurso`): fotos, firmas y
+   * adjuntos en base64. El detalle (`GET /recurso/:id`) lo sigue entregando.
+   */
+  list?: boolean;
+  /**
+   * PII aunque el nombre no lo diga (`llamadas.numero` = teléfono): field-values
+   * solo con sesión interna válida.
+   */
+  pii?: boolean;
+  /**
+   * FK real: recurso/tabla al que apunta. Un `_id`/`_ref` con nombre sensible
+   * (`domicilio_id`) solo admite field-values si lo declara.
+   */
+  ref?: string;
 };
+
+export {
+  field_name_access,
+  field_name_denied,
+  JSON_BLOB_FIELDS,
+  snake_field_name,
+  type FieldNameOptions,
+  type FieldValuesAccess,
+} from "./field-values-rule.js";
+
+/**
+ * Sesión interna válida: usuario firmado por el núcleo, no anónimo ni del realm
+ * público. Es la condición para listar valores de un campo PII.
+ */
+export function field_values_session(identity: KirletIdentity | null | undefined): boolean {
+  if (!identity || !identity.user_id || identity.user_id === ANONYMOUS_USER_ID) return false;
+  // Negar por defecto: sin user_type/realm explícitos no cuenta como sesión interna
+  // (verify v1 y la identidad de desarrollo los fijan en "internal").
+  return identity.user_type === "internal" && identity.realm === "internal";
+}
+
+/** Clase de acceso de un campo de `define_crud` (ver `field_name_access`). */
+export function field_values_access(
+  field: string,
+  spec: CrudFieldSpec | undefined,
+  resource?: string,
+): FieldValuesAccess {
+  if (spec?.field_values === true) return "open";
+  // `list: false` marca fotos, firmas y adjuntos: tampoco salen por field-values.
+  if (spec?.secret === true || spec?.list === false || spec?.type === "json") return "denied";
+  const by_name = field_name_access(field, {
+    is_reference: Boolean(spec?.ref),
+    is_boolean: spec?.type === "boolean",
+    resource,
+  });
+  if (by_name === "open" && spec?.pii === true) return "session";
+  return by_name;
+}
+
+/**
+ * `field-values` devuelve los valores distintos de una columna a quien tenga
+ * lectura del recurso. Credenciales, firmas y json no salen nunca; la PII solo
+ * con sesión interna (`identity`). Sin `identity` se evalúa como sin sesión.
+ * `field_values: true` abre el campo.
+ */
+export function field_values_denied(
+  field: string,
+  spec: CrudFieldSpec | undefined,
+  identity?: KirletIdentity | null,
+  resource?: string,
+): boolean {
+  const access = field_values_access(field, spec, resource);
+  if (access === "open") return false;
+  if (access === "denied") return true;
+  return !field_values_session(identity);
+}
 
 export type CrudHooks = {
   before_create?: (ctx: KirletCtx, row: DomainRow) => Promise<DomainRow> | DomainRow;
@@ -210,6 +289,9 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
   const id_prefix = opts.id_prefix ?? resource.replace(/s$/, "").slice(0, 8);
   const unknown_to_payload = opts.unknown_to_payload === true || opts.imperium === true;
   const imperium = opts.imperium !== false;
+  /** Columnas sin field-values: el filtro de la lista pasa a texto libre. */
+  const fv_denied_for = (identity: KirletIdentity | null) =>
+    Object.keys(fields).filter((name) => field_values_denied(name, fields[name], identity, resource));
 
   const history_resource = (ctx: KirletCtx) => {
     // full resource id filled by serve layer via slug; here use relative name
@@ -242,6 +324,53 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
       actor_label: ctx.actor,
       payload: redacted,
     });
+  }
+
+  /** Actualización con hooks e historia: la usan `PATCH /:id` y los alias Imperium. */
+  async function update_row(
+    ctx: KirletCtx,
+    id: string,
+    existing: DomainRow,
+    body: Record<string, unknown>,
+  ): Promise<DomainRow> {
+    let patch = pick_body(fields, body, "update", unknown_to_payload);
+    patch = { ...patch, updated_at: now_iso() };
+    if (opts.hooks?.before_update) {
+      patch = await opts.hooks.before_update(ctx, id, patch, existing);
+    }
+    const updated = await ctx.data.update(table, { id }, patch);
+    if (!updated) throw new KirletHttpError(404, "not_found", "not found");
+    if (opts.hooks?.after_update) {
+      await opts.hooks.after_update(ctx, updated, existing);
+    }
+    await append_history(ctx, "update", id, { before: existing, after: updated });
+    return updated;
+  }
+
+  /** Baja con hooks e historia: la usan `DELETE /:id` y `DELETE /id/:id`. */
+  async function delete_row(
+    ctx: KirletCtx,
+    id: string,
+  ): Promise<{ existing: DomainRow; updated: DomainRow | null }> {
+    const existing = await ctx.data.findOne(table, { id });
+    if (!existing) throw new KirletHttpError(404, "not_found", "not found");
+    if (opts.hooks?.before_delete) await opts.hooks.before_delete(ctx, existing);
+    if (soft) {
+      const updated = await ctx.data.update(
+        table,
+        { id },
+        { [soft_field]: inactive_val, updated_at: now_iso() },
+      );
+      if (opts.hooks?.after_delete) {
+        await opts.hooks.after_delete(ctx, updated ?? existing);
+      }
+      await append_history(ctx, "delete", id, { before: existing, after: updated });
+      return { existing, updated };
+    }
+    await ctx.data.delete(table, { id });
+    if (opts.hooks?.after_delete) await opts.hooks.after_delete(ctx, existing);
+    await append_history(ctx, "delete", id, { before: existing, after: null });
+    return { existing, updated: null };
   }
 
   return define_routes({
@@ -278,7 +407,15 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
         };
       }
       const total = await ctx.data.count(table, find_opts.where, find_opts.search);
-      return { data: rows, total_elementos: total, message: "Ruta encontrada" };
+      const omit = Object.entries(fields).filter(([, spec]) => spec.list === false).map(([name]) => name);
+      const data = omit.length
+        ? rows.map((row) => {
+            const copy = { ...row };
+            for (const name of omit) delete copy[name];
+            return copy;
+          })
+        : rows;
+      return { data, total_elementos: total, message: "Ruta encontrada", fv_denied: fv_denied_for(ctx.identity) };
     },
 
     ...(imperium
@@ -301,8 +438,31 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
             if (!/^[a-z_][a-z0-9_]*$/i.test(field)) {
               throw new KirletHttpError(400, "validation_error", "Campo inválido");
             }
+            // Un campo que la tabla no tiene llegaba al SQL y salía 500.
+            const columna_base = field === "id" || field === "created_at" || field === "updated_at" || field === soft_field;
+            if (!columna_base && !fields[field]) {
+              throw new KirletHttpError(400, "validation_error", `Campo desconocido: ${field}`, { field });
+            }
+            if (!columna_base && field_values_denied(field, fields[field], ctx.identity, resource)) {
+              const access = field_values_access(field, fields[field], resource);
+              throw new KirletHttpError(
+                400,
+                "validation_error",
+                access === "session"
+                  ? `El campo ${field} solo admite field-values con sesión`
+                  : `El campo ${field} no admite field-values`,
+                { field },
+              );
+            }
             const termino = String(ctx.query.get("termino") ?? "");
-            const values = await ctx.data.distinct(table, field, termino);
+            // Igual que la lista: sin `include_inactive`, solo filas activas.
+            const include_inactive = ctx.query.get("include_inactive") === "1" ||
+              ctx.query.get("include_inactive") === "true" ||
+              ctx.query.get("show_archived") === "true";
+            const where: FindManyOptions["where"] = soft && !include_inactive
+              ? { [soft_field]: active_val as string | number | boolean }
+              : undefined;
+            const values = await ctx.data.distinct(table, field, termino, where);
             const data = values.map((value) => ({
               value,
               label: String(value),
@@ -326,9 +486,7 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
             if (!id) throw new KirletHttpError(400, "validation_error", "Se necesita un id para actualizar");
             const existing = await ctx.data.findOne(table, { id });
             if (!existing) throw new KirletHttpError(404, "not_found", "not found");
-            let patch = pick_body(fields, body, "update", unknown_to_payload);
-            patch = { ...patch, updated_at: now_iso() };
-            await ctx.data.update(table, { id }, patch);
+            await update_row(ctx, id, existing, body);
             return { data: null, total_elementos: 1, message: "Actualizado correctamente" };
           },
           [`PUT /${resource}/batch`]: async (ctx: KirletCtx) => {
@@ -338,31 +496,15 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
             for (const raw of items) {
               const row = raw as Record<string, unknown>;
               const id = String(row._id ?? row.id ?? "");
-              if (id) {
-                const existing = await ctx.data.findOne(table, { id });
-                if (existing) {
-                  const patch = pick_body(fields, row, "update", unknown_to_payload);
-                  const updated = await ctx.data.update(table, { id }, { ...patch, updated_at: now_iso() });
-                  if (updated) data.push(updated);
-                  continue;
-                }
-              }
+              if (!id) continue;
+              const existing = await ctx.data.findOne(table, { id });
+              if (existing) data.push(await update_row(ctx, id, existing, row));
             }
             return { data, total_elementos: data.length, message: "Lote aplicado" };
           },
           [`DELETE /${resource}/id/:id`]: async (ctx: KirletCtx) => {
-            const existing = await ctx.data.findOne(table, { id: ctx.params.id });
-            if (!existing) throw new KirletHttpError(404, "not_found", "not found");
-            if (soft) {
-              const updated = await ctx.data.update(
-                table,
-                { id: ctx.params.id },
-                { [soft_field]: inactive_val, updated_at: now_iso() },
-              );
-              return { data: updated, total_elementos: 1, message: "Eliminado correctamente" };
-            }
-            await ctx.data.delete(table, { id: ctx.params.id });
-            return { data: existing, total_elementos: 1, message: "Eliminado correctamente" };
+            const { existing, updated } = await delete_row(ctx, ctx.params.id);
+            return { data: updated ?? existing, total_elementos: 1, message: "Eliminado correctamente" };
           },
         }
       : {}),
@@ -416,62 +558,14 @@ export function define_crud(opts: DefineCrudOptions): KirletRouteTable {
       const existing = await ctx.data.findOne(table, { id: ctx.params.id });
       if (!existing) throw new KirletHttpError(404, "not_found", "not found");
       const body = (await ctx.body<Record<string, unknown>>()) ?? {};
-      let patch = pick_body(fields, body, "update", unknown_to_payload);
-      patch = { ...patch, updated_at: now_iso() };
-      if (opts.hooks?.before_update) {
-        patch = await opts.hooks.before_update(
-          ctx,
-          ctx.params.id,
-          patch,
-          existing,
-        );
-      }
-      const updated = await ctx.data.update(
-        table,
-        { id: ctx.params.id },
-        patch,
-      );
-      if (!updated) throw new KirletHttpError(404, "not_found", "not found");
-      if (opts.hooks?.after_update) {
-        await opts.hooks.after_update(ctx, updated, existing);
-      }
-      await append_history(ctx, "update", ctx.params.id, {
-        before: existing,
-        after: updated,
-      });
-      return { data: updated };
+      return { data: await update_row(ctx, ctx.params.id, existing, body) };
     },
 
     [`DELETE /${resource}/:id`]: async (ctx) => {
-      const existing = await ctx.data.findOne(table, { id: ctx.params.id });
-      if (!existing) throw new KirletHttpError(404, "not_found", "not found");
-      if (opts.hooks?.before_delete) await opts.hooks.before_delete(ctx, existing);
-      if (soft) {
-        const updated = await ctx.data.update(
-          table,
-          { id: ctx.params.id },
-          { [soft_field]: inactive_val, updated_at: now_iso() },
-        );
-        if (opts.hooks?.after_delete) {
-          await opts.hooks.after_delete(ctx, updated ?? existing);
-        }
-        await append_history(ctx, "delete", ctx.params.id, {
-          before: existing,
-          after: updated,
-        });
-        return { data: updated };
-      }
-      await ctx.data.delete(table, { id: ctx.params.id });
-      if (opts.hooks?.after_delete) await opts.hooks.after_delete(ctx, existing);
-      await append_history(ctx, "delete", ctx.params.id, {
-        before: existing,
-        after: null,
-      });
-      return null;
+      const { updated } = await delete_row(ctx, ctx.params.id);
+      return soft ? { data: updated } : null;
     },
   });
 }
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion DEFINE CRUD
-// (o==================================================================o)

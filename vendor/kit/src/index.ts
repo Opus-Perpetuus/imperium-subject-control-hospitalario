@@ -1,6 +1,4 @@
-// (o==================================================================o)
 //   #region PUBLIC API
-// (o-----------------------------------------------------------\/-----o)
 
 /**
  * Full kit surface for Node (API, Imperium apps, tests).
@@ -18,6 +16,9 @@ export * from './descriptors/ui-descriptor.js';
 export * from './descriptors/ui-action.js';
 export * from './descriptors/landing.js';
 export * from './descriptors/feature-shell.js';
+export * from './descriptors/option-lists.js';
+export * from './descriptors/subtable.js';
+export * from './descriptors/code-completions.js';
 export * from './html/html-profile.js';
 export * from './html/normalize-html.js';
 export * from './html/sanitize-html.js';
@@ -40,6 +41,7 @@ export * from './kirlet/file-store.js';
 export * from './kirlet/nox-services.js';
 export * from './kirlet/memory-nox-services.js';
 export * from './kirlet/http-nox-services.js';
+export * from './kirlet/subject-client.js';
 export * from './kirlet/define-module.js';
 export * from './kirlet/define-crud.js';
 export * from './kirlet/define-kirlet.js';
@@ -68,6 +70,4 @@ export * from './kirlet/widgets.js';
 export * from './platform/realms.js';
 export * from './tags/types.js';
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion PUBLIC API
-// (o==================================================================o)

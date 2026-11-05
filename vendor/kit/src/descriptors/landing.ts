@@ -1,6 +1,4 @@
-// (o==================================================================o)
 //   #region LANDING DOCUMENT (pure default / apply / sanitize)
-// (o-----------------------------------------------------------\/-----o)
 
 import { PUBLIC_SESSION_START_PATH } from "../auth/principal.js";
 import {
@@ -416,7 +414,9 @@ export function home_document_v1(): Record<string, unknown> {
  * Se conserva aqui para poder reconocerla **exacta** y cambiarla por la
  * plantilla. Fuera de esa comparacion no se usa: nada la vuelve a sembrar.
  */
-export function legacy_placeholder_home_document(): Record<string, unknown> {
+export function legacy_placeholder_home_document(
+  href: string = "/login",
+): Record<string, unknown> {
   return {
     id: "portal.home",
     owner: "portal",
@@ -439,7 +439,7 @@ export function legacy_placeholder_home_document(): Record<string, unknown> {
             {
               component: "nox.button",
               text: "Entrar",
-              props: { href: "/login" },
+              props: { href },
             },
           ],
         },
@@ -458,9 +458,11 @@ export function legacy_placeholder_home_document(): Record<string, unknown> {
 export function is_legacy_placeholder_home(document: unknown): boolean {
   if (!is_plain_object(document)) return false;
   try {
-    return (
-      JSON.stringify(sort_keys(document)) ===
-      JSON.stringify(sort_keys(legacy_placeholder_home_document()))
+    const actual = JSON.stringify(sort_keys(document));
+    return ["/login", `/${PUBLIC_SESSION_START_PATH}`].some(
+      (href) =>
+        actual ===
+        JSON.stringify(sort_keys(legacy_placeholder_home_document(href))),
     );
   } catch {
     return false;
@@ -579,6 +581,4 @@ export function plan_landing_document(
   };
 }
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion LANDING DOCUMENT
-// (o==================================================================o)

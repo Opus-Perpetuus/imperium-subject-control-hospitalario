@@ -1,6 +1,4 @@
-// (o==================================================================o)
 //   #region KIRLET RUNTIME AUTH
-// (o-----------------------------------------------------------\/-----o)
 
 import {
   verify_kirlet_identity,
@@ -98,6 +96,8 @@ function dev_identity(technical_id: string): KirletIdentity {
     is_admin: true,
     kirlet_id: technical_id,
     grants: [],
+    user_type: "internal",
+    realm: "internal",
   };
 }
 
@@ -231,6 +231,4 @@ export function _reset_auth_off_warned_for_tests(): void {
   auth_off_warned = false;
 }
 
-// (o-----------------------------------------------------------/\-----o)
 //   #endregion KIRLET RUNTIME AUTH
-// (o==================================================================o)
