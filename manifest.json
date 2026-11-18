@@ -2,8 +2,8 @@
   "id": "SUBJECT-control-hospitalario",
   "technicalId": "subject-control-hospitalario",
   "name": "Control Hospitalario",
-  "version": "0.3.11",
-  "image": "ghcr.io/opus-perpetuus/subject-control-hospitalario:0.3.11",
+  "version": "0.3.12",
+  "image": "ghcr.io/opus-perpetuus/subject-control-hospitalario:0.3.12",
   "compat": {
     "nox": ">=13.83.0",
     "kit": "^13.0.0"
